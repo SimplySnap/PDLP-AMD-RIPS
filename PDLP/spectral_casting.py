@@ -34,7 +34,7 @@ def sample_points_better(K,i,l,u,device="cpu"):
     Generates 2^i random points on n-dim ball. n is column in K, ball's construction is as follows:
     
     1. Get the max finite entry of u-l and set this scalar to h
-    2. Set radius to h/2 * sqrt(2) TODO check if this scales to many dimensions
+    2. Set radius to h/2 * sqrt(2) 
     3. Get the centre
         a. For entires i in u unbounded, set corresponding center to spectral norm + l[i]
         b. For other entries bounded, set corresponding center to (h/2)^n
@@ -73,6 +73,8 @@ def sample_points_better(K,i,l,u,device="cpu"):
         #  Get index of h
         h_index = torch.argmax(finite_diffs)
     
+    #  
+
     #------------ 2. Setting radius -------------
     #  Now, we calculate the radius for unbounded entries: the logic is
     #  we scale how the max bounded entry by the spectral norm,
@@ -93,11 +95,21 @@ def sample_points_better(K,i,l,u,device="cpu"):
     centre = torch.zeros((dim, 1), device=device)
     centre[is_pos_inf] = r + l[is_pos_inf] #  Set centre for unbdd above entries
     centre[~is_pos_inf] = r / (dim**0.5) #  Set centre for bdd entries 
+    centre[finite_mask] = ((u[finite_mask] + l[finite_mask]) / 2).unsqueeze(1)
 
 
     #---- Radius Tensor/Mask Creation ----
     #  Set radius_tensor to r_unbdd for unbounded entries, r for bounded entries
     radius_tensor = torch.where(is_pos_inf, r_unbdd, r)  # shape: (dim,j)
+
+    #  Fit region for fully bounded entries
+    # For bounded axes (finite_mask), set radius to (u_i - l_i)/2
+    custom_radius = torch.zeros_like(radius_tensor)
+    custom_radius[finite_mask] = (u[finite_mask] - l[finite_mask]) / 2.0
+
+    # Overwrite the corresponding entries in radius_tensor with custom_radius for bounded axes
+    radius_tensor[finite_mask] = custom_radius[finite_mask]
+
     #  Expand radius_tensor to match points for broadcasting
     radius_tensor = radius_tensor.expand(-1,j)
 
