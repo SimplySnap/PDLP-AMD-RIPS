@@ -36,6 +36,20 @@ def parse_args():
     parser.add_argument('--fishnet', action='store_true',help="Use fishnet alg for better startpoint")
     return parser.parse_args()
 
+'''
+Call with python -u /path/to/main.py \
+  --device gpu \
+  --instance_path /path/to/mps/files \
+  --tolerance 1e-4 \
+  --output_path /path/to/save/results \
+  --precondition \
+  --primal_weight_update \
+  --adaptive_stepsize \
+  --max_kkt 100000
+  --fishnet \
+'''
+
+
 if __name__ == '__main__':
     args = parse_args()
 

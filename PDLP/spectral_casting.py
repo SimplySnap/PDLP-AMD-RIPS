@@ -95,7 +95,7 @@ def sample_points_better(K,i,l,u,device="cpu"):
     centre = torch.zeros((dim, 1), device=device)
     centre[is_pos_inf] = r + l[is_pos_inf] #  Set centre for unbdd above entries
     centre[~is_pos_inf] = r / (dim**0.5) #  Set centre for bdd entries 
-    centre[finite_mask] = ((u[finite_mask] + l[finite_mask]) / 2).unsqueeze(1)
+    centre[finite_mask] = ((u[finite_mask] + l[finite_mask]) / 2)
 
 
     #---- Radius Tensor/Mask Creation ----
