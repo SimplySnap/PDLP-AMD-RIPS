@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from helpers import spectral_norm_estimate_torch, spectral_norm_estimate_torch, project_lambda_box
 
-def spectral_cast(K,c,q,l,u,m_ineq,k,s=2,i=5,device="cpu"):
+def spectral_cast(K,c,q,l,u,m_ineq,k,i=5,s=2,device="cpu"):
     '''
     Main function which takes as input needed data types, and i (exponent of points) to cast.
     Returns a starting point (x, y) that is a promising initial guess for the primal-dual problem,
