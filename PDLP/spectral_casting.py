@@ -209,7 +209,7 @@ def fishnet(pts,K,c,q,l,u,m_ineq,s=2,k=32, device="cpu"):
         old_j = pts.shape[1]
         count += 2*pts.shape[1]*k #  For counting KKT passes - pts,pts_y KKT passes
         #  pts,pts_y = get_best_pts(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,s)
-        pts,pts_y = get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s) #  Use KKT residual for better distance heuristic
+        pts,pts_y = get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s,device) #  Use KKT residual for better distance heuristic
         new_j = pts.shape[1]
 
         #  Parity - if i odd then repopulate fully, if i odd, then don't
@@ -351,7 +351,7 @@ def get_best_pts(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,s=2):
     return pts,pts_y
 
 
-def get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s=2):
+def get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s=2,device="cpu"):
     '''
     Selects the best s-proportion of points based on KKT residual.
     More time intensive than duality gap, but more accurate.
@@ -386,10 +386,11 @@ def get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s=2)
     #  Loop over columns/points to create kkt residuals vector
     for i in range(grad.shape[1]):
         grad_col = grad[:,i].unsqueeze(1) #  Single grad column - corresponds to grad
-        kkt_val = KKT_error(grad_col, pts_y[:,i],c,q,K,m_ineq,omega,is_neg_inf,is_pos_inf,l_dual,u_dual)
+        grad_col_dual = pts_y[:,i].unsqueeze(1)
+        kkt_val = KKT_error(grad_col,grad_col_dual,c,q,K,m_ineq,omega,is_neg_inf,is_pos_inf,l_dual,u_dual,device)
         kkt_residuals.append(kkt_val)
     
-    kkt_residuals = torch.stack(kkt_residuals) #  shape: (num_points,)
+    kkt_residuals = torch.stack(kkt_residuals).squeeze(1) #  shape: (num_points,) IDK why we need squeeze here but hey if it works it works
 
     #  Step 2: sort vectors
     sorted_indices = torch.argsort(kkt_residuals) #  Get indices in ascending order
@@ -404,6 +405,7 @@ def get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s=2)
 
     pts = pts[:,:num_cols] #  Chop s.t first 1/s proportion of points remain
     pts_y = pts_y[:,:num_cols]
+
 
     return pts,pts_y
 
