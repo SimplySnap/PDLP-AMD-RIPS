@@ -96,16 +96,18 @@ def compute_residuals_and_duality_gap(x, y, c, q, K, m_ineq, is_neg_inf, is_pos_
     return primal_residual, dual_residual, duality_gap, prim_obj, adjusted_dual
     
 def KKT_error(x, y, c, q, K, m_ineq, omega, is_neg_inf, is_pos_inf, l_dual, u_dual, device):
-      """
-      Computes the KKT error using global variables.
-      """
-      omega_sqrd = omega ** 2
-      # Compute primal and dual residuals, and duality gap
-      primal_residual, dual_residual, duality_gap, _ , _ = compute_residuals_and_duality_gap(x, y, c, q, K, m_ineq, is_neg_inf, is_pos_inf, l_dual, u_dual)
-      # Compute the error
-      KKT = torch.sqrt(omega_sqrd * primal_residual ** 2 + (dual_residual ** 2) / omega_sqrd + duality_gap ** 2)
+    """
+    Computes the KKT error using global variables.
+    Returns:
+            KKT (torch.Tensor): KKT error (scalar value)
+    """
+    omega_sqrd = omega ** 2
+    # Compute primal and dual residuals, and duality gap
+    primal_residual, dual_residual, duality_gap, _ , _ = compute_residuals_and_duality_gap(x, y, c, q, K, m_ineq, is_neg_inf, is_pos_inf, l_dual, u_dual)
+    # Compute the error
+    KKT = torch.sqrt(omega_sqrd * primal_residual ** 2 + (dual_residual ** 2) / omega_sqrd + duality_gap ** 2)
 
-      return KKT
+    return KKT
   
 def check_termination(primal_residual, dual_residual, duality_gap, prim_obj, adjusted_dual, q_norm, c_norm, tol):
     """

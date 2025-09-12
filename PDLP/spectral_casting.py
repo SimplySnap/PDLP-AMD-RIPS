@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from helpers import spectral_norm_estimate_torch, spectral_norm_estimate_torch, project_lambda_box
+from helpers import spectral_norm_estimate_torch, spectral_norm_estimate_torch, project_lambda_box, KKT_error, compute_residuals_and_duality_gap
 
 def spectral_cast(K,c,q,l,u,m_ineq,k,i=5,s=2,device="cpu"):
     '''
@@ -127,7 +127,6 @@ def sample_points_better(K,i,l,u,device="cpu"):
 
     return points, None #  Return vector of primal points, and radius
 
-
 def sample_points(K,i,device="cpu"):
     '''
     Generates 2^i random points in an n-dimensional ball, where n is the number of columns in K,
@@ -209,7 +208,8 @@ def fishnet(pts,K,c,q,l,u,m_ineq,s=2,k=32, device="cpu"):
         #  Now, we evaluate top s proportion of points
         old_j = pts.shape[1]
         count += 2*pts.shape[1]*k #  For counting KKT passes - pts,pts_y KKT passes
-        pts,pts_y = get_best_pts(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,s)
+        #  pts,pts_y = get_best_pts(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,s)
+        pts,pts_y = get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s) #  Use KKT residual for better distance heuristic
         new_j = pts.shape[1]
 
         #  Parity - if i odd then repopulate fully, if i odd, then don't
@@ -349,6 +349,64 @@ def get_best_pts(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,s=2):
     pts_y = pts_y[:,:num_cols]
 
     return pts,pts_y
+
+
+def get_best_pts_kkt(K,pts,pts_y,c,q,l,u,is_pos_inf,is_neg_inf,m_ineq,omega,s=2):
+    '''
+    Selects the best s-proportion of points based on KKT residual.
+    More time intensive than duality gap, but more accurate.
+
+    Args:
+        K (torch.Tensor): Constraint matrix.
+        pts (torch.Tensor): Primal points (n x num_pts).
+        pts_y (torch.Tensor): Dual points (m x num_pts).
+        c (torch.Tensor): Primal objective vector.
+        q (torch.Tensor): Dual objective vector.
+        l (torch.Tensor): Lower bound vector.
+        u (torch.Tensor): Upper bound vector.
+        is_pos_inf (torch.Tensor): Mask for +infinity upper bounds.
+        is_neg_inf (torch.Tensor): Mask for -infinity lower bounds.
+        m_ineq (int): Number of inequality constraints.
+        s (int, optional): Proportion to select (1/s points survive). Default 2.
+        
+    Returns:
+        tuple[torch.Tensor, torch.Tensor]: Primal and dual points (chopped)
+        '''
+    #  Initialize dual bounds
+    l_dual = l.clone()
+    u_dual = u.clone()
+    l_dual[is_neg_inf] = 0
+    u_dual[is_pos_inf] = 0
+
+    #  Step 1: KKT residual
+    grad = c - K.T @ pts_y
+    prim_obj = torch.matmul(c.T, pts)
+    dual_obj = torch.matmul(q.T, pts_y)
+    kkt_residuals = [] #  initialize kkt residual values vector
+    #  Loop over columns/points to create kkt residuals vector
+    for i in range(grad.shape[1]):
+        grad_col = grad[:,i].unsqueeze(1) #  Single grad column - corresponds to grad
+        kkt_val = KKT_error(grad_col, pts_y[:,i],c,q,K,m_ineq,omega,is_neg_inf,is_pos_inf,l_dual,u_dual)
+        kkt_residuals.append(kkt_val)
+    
+    kkt_residuals = torch.stack(kkt_residuals) #  shape: (num_points,)
+
+    #  Step 2: sort vectors
+    sorted_indices = torch.argsort(kkt_residuals) #  Get indices in ascending order
+    pts = pts[:,sorted_indices]
+    pts_y = pts_y[:,sorted_indices]
+
+    #  Step 3: chop vectors
+    #  n - number of columns 
+    _, n = pts.shape
+
+    num_cols = max(1,n//s) #  s parameter controls how much we chop at each stage
+
+    pts = pts[:,:num_cols] #  Chop s.t first 1/s proportion of points remain
+    pts_y = pts_y[:,:num_cols]
+
+    return pts,pts_y
+
 
 def PDHG_step(K,pts,pts_y,c,q,l,u,eta,omega,m_ineq,device="cpu"):
     '''
